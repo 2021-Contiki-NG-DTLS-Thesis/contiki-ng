@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "contiki.h"
+#include "contiki-net.h"
 
 
 #if !defined(MBEDTLS_CONFIG_FILE)
@@ -28,7 +29,7 @@
 #include "sys/log.h"
 #define LOG_MODULE "App"
 #define LOG_LEVEL LOG_LEVEL_APP
-
+/*
 #if !defined(MBEDTLS_SSL_CLI_C) || !defined(MBEDTLS_SSL_PROTO_DTLS) ||    \
     !defined(MBEDTLS_NET_C)  || !defined(MBEDTLS_TIMING_C) ||             \
     !defined(MBEDTLS_ENTROPY_C) || !defined(MBEDTLS_CTR_DRBG_C) ||        \
@@ -44,8 +45,7 @@ int main( void )
     mbedtls_exit( 0 );
 }
 #else
-
-#include <string.h>
+*/
 
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/debug.h"
@@ -56,8 +56,7 @@ int main( void )
 #include "mbedtls/certs.h"
 #include "mbedtls/timing.h"
 
-
-#define SERVER_PORT "4433"
+#define SERVER_PORT 4433
 #define SERVER_NAME "localhost"
 
 #define SERVER_ADDR "::1"
@@ -81,7 +80,7 @@ PROCESS_THREAD(dtls_example_server, ev, data)
   printf("Starting DTLS Example Server\n");
 
   int ret, len;
-  mbedtls_net_context server_fd;
+  struct udp_socket sock;
   uint32_t flags;
   unsigned char buf[1024];
   const char *pers = "dtls_client";
@@ -94,7 +93,8 @@ PROCESS_THREAD(dtls_example_server, ev, data)
   mbedtls_x509_crt cacert;
   mbedtls_timing_delay_context timer;
 
-  mbedtls_net_init(&server_fd);
+  //mbedtls_net_init(&server_fd);
+  udp_socket_register(&sock, NULL, mbedtls_callback);
   mbedtls_ssl_init(&ssl);
   mbedtls_ssl_config_init(&conf);
   mbedtls_x509_crt_init(&cacert);
@@ -131,12 +131,16 @@ PROCESS_THREAD(dtls_example_server, ev, data)
 
 
 
-  printf( "  . Connecting to udp/%s/%s...", SERVER_NAME, SERVER_PORT );
+  printf( "  . Connecting to udp/%s/%d...", SERVER_NAME, SERVER_PORT );
 
-  if( ( ret = mbedtls_net_connect( &server_fd, SERVER_ADDR,
-                                      SERVER_PORT, MBEDTLS_NET_PROTO_UDP ) ) != 0 )
+
+  uip_ipaddr_t server_addr;
+  uip_ip6addr(&server_addr,0xfd00, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001);
+
+  if( ( ret = udp_socket_connect( &sock, &server_addr,
+                                      SERVER_PORT ) ) != 1 )
   {
-    printf( " failed\n  ! mbedtls_net_connect returned %d\n\n", ret );
+    printf( " failed\n  ! udp_socket_connect returned %d\n\n", ret );
     goto exit;
   }
 
@@ -172,8 +176,8 @@ PROCESS_THREAD(dtls_example_server, ev, data)
     printf( " failed\n  ! mbedtls_ssl_set_hostname returned %d\n\n", ret );
     goto exit;
   }
-  mbedtls_ssl_set_bio( &ssl, &server_fd,
-                        mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout );
+  mbedtls_ssl_set_bio( &ssl, &sock,
+                        mbedtls_net_send, mbedtls_net_recv, NULL );
 
   mbedtls_ssl_set_timer_cb( &ssl, &timer, mbedtls_timing_set_delay,
                                           mbedtls_timing_get_delay );
@@ -289,7 +293,7 @@ close_notify:
 
     
 exit:
-  mbedtls_net_free( &server_fd );
+  udp_socket_close(&sock);
 
   mbedtls_x509_crt_free( &cacert );
   mbedtls_ssl_free( &ssl );
@@ -305,4 +309,4 @@ exit:
   PROCESS_END();
 
 }
-#endif
+/*#endif*/

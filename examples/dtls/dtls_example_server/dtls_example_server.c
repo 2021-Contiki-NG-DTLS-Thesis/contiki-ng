@@ -27,7 +27,7 @@
 #else
 #define BIND_IP     "::"
 #endif
-
+/*
 #if !defined(MBEDTLS_SSL_SRV_C) || !defined(MBEDTLS_SSL_PROTO_DTLS) ||    \
     !defined(MBEDTLS_SSL_COOKIE_C) || !defined(MBEDTLS_NET_C) ||          \
     !defined(MBEDTLS_ENTROPY_C) || !defined(MBEDTLS_CTR_DRBG_C) ||        \
@@ -46,7 +46,7 @@ int main( void )
     mbedtls_exit( 0 );
 }
 #else
-
+*/
 #if defined(_WIN32)
 #include <windows.h>
 #endif
@@ -109,11 +109,15 @@ PROCESS_THREAD(er_example_server, ev, data)
         // PROCESS_WAIT_EVENT();
 
         int ret, len;
-        mbedtls_net_context listen_fd, client_fd;
+        struct udp_socket listen_sock;
+        struct socket_info client_info;
+        client_info.source_addr = NULL;
+        client_info.source_port = 0;
+        
         unsigned char buf[1024];
         const char *pers = "dtls_server";
-        unsigned char client_ip[16] = { 0 };
-        size_t cliip_len;
+       // unsigned char client_ip[16] = { 0 };
+        //size_t cliip_len;
         mbedtls_ssl_cookie_ctx cookie_ctx;
 
         mbedtls_entropy_context entropy;
@@ -128,8 +132,8 @@ PROCESS_THREAD(er_example_server, ev, data)
         mbedtls_ssl_cache_context cache;
         #endif
 
-        mbedtls_net_init( &listen_fd );
-        mbedtls_net_init( &client_fd );
+        udp_socket_register(&listen_sock, &client_info, mbedtls_callback);
+        
         mbedtls_ssl_init( &ssl );
         mbedtls_ssl_config_init( &conf );
         mbedtls_ssl_cookie_init( &cookie_ctx );
@@ -190,9 +194,9 @@ PROCESS_THREAD(er_example_server, ev, data)
         printf( "  . Bind on udp/*/4433 ..." );
         fflush( stdout );
 
-        if( ( ret = mbedtls_net_bind( &listen_fd, BIND_IP, "4433", MBEDTLS_NET_PROTO_UDP ) ) != 0 )
+        if( ( ret = udp_socket_bind(&listen_sock, 4433) != 1 ) )
         {
-            printf( " failed\n  ! mbedtls_net_bind returned %d\n\n", ret );
+            printf( " failed\n  ! udp_socket_bind returned %d\n\n", ret );
             goto exit;
         }
 
@@ -276,7 +280,7 @@ reset:
         }
         #endif
 
-        mbedtls_net_free( &client_fd );
+        //mbedtls_net_free( &client_fd );
 
         mbedtls_ssl_session_reset( &ssl );
 
@@ -286,24 +290,19 @@ reset:
         printf( "  . Waiting for a remote connection ..." );
         fflush( stdout );
 
-        if( ( ret = mbedtls_net_accept( &listen_fd, &client_fd,
-                        client_ip, sizeof( client_ip ), &cliip_len ) ) != 0 )
-        {
-            printf( " failed\n  ! mbedtls_net_accept returned %d\n\n", ret );
-            goto exit;
-        }
+     //   PROCESS_WAIT_UNTIL(client_info.source_addr);
 
         /* For HelloVerifyRequest cookies */
         if( ( ret = mbedtls_ssl_set_client_transport_id( &ssl,
-                        client_ip, cliip_len ) ) != 0 )
+                        (unsigned char *)&client_info, sizeof(client_info) ) ) != 0 )
         {
             printf( " failed\n  ! "
                     "mbedtls_ssl_set_client_transport_id() returned -0x%x\n\n", (unsigned int) -ret );
             goto exit;
         }
 
-        mbedtls_ssl_set_bio( &ssl, &client_fd,
-                             mbedtls_net_send, mbedtls_net_recv, mbedtls_net_recv_timeout );
+        mbedtls_ssl_set_bio( &ssl, NULL,
+                             mbedtls_net_send, mbedtls_net_recv, NULL );
 
         printf( " ok\n" );
 
@@ -413,8 +412,7 @@ exit:
         }
         #endif
 
-        mbedtls_net_free( &client_fd );
-        mbedtls_net_free( &listen_fd );
+        udp_socket_close(&listen_sock);
 
         mbedtls_x509_crt_free( &srvcert );
         mbedtls_pk_free( &pkey );
@@ -447,7 +445,7 @@ exit:
 
 }
 
-#endif /* MBEDTLS_SSL_SRV_C && MBEDTLS_SSL_PROTO_DTLS &&
+/*#endif  MBEDTLS_SSL_SRV_C && MBEDTLS_SSL_PROTO_DTLS &&
           MBEDTLS_SSL_COOKIE_C && MBEDTLS_NET_C && MBEDTLS_ENTROPY_C &&
 	  MBEDTLS_CTR_DRBG_C && MBEDTLS_X509_CRT_PARSE_C && MBEDTLS_RSA_C
 	  && MBEDTLS_CERTS_C && MBEDTLS_PEM_PARSE_C && MBEDTLS_TIMING_C */
