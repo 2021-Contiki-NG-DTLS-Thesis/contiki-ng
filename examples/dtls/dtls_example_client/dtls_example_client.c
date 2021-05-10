@@ -25,27 +25,12 @@
 #define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif
 
+#define MBEDTLS_DEBUG_C
 
 #include "sys/log.h"
 #define LOG_MODULE "App"
 #define LOG_LEVEL LOG_LEVEL_APP
-/*
-#if !defined(MBEDTLS_SSL_CLI_C) || !defined(MBEDTLS_SSL_PROTO_DTLS) ||    \
-    !defined(MBEDTLS_NET_C)  || !defined(MBEDTLS_TIMING_C) ||             \
-    !defined(MBEDTLS_ENTROPY_C) || !defined(MBEDTLS_CTR_DRBG_C) ||        \
-    !defined(MBEDTLS_X509_CRT_PARSE_C) || !defined(MBEDTLS_RSA_C) ||      \
-    !defined(MBEDTLS_CERTS_C) || !defined(MBEDTLS_PEM_PARSE_C)
-int main( void )
-{
-    printf( "MBEDTLS_SSL_CLI_C and/or MBEDTLS_SSL_PROTO_DTLS and/or "
-            "MBEDTLS_NET_C and/or MBEDTLS_TIMING_C and/or "
-            "MBEDTLS_ENTROPY_C and/or MBEDTLS_CTR_DRBG_C and/or "
-            "MBEDTLS_X509_CRT_PARSE_C and/or MBEDTLS_RSA_C and/or "
-            "MBEDTLS_CERTS_C and/or MBEDTLS_PEM_PARSE_C not defined.\n" );
-    mbedtls_exit( 0 );
-}
-#else
-*/
+ 
 
 #include "mbedtls/net_sockets.h"
 #include "mbedtls/debug.h"
@@ -55,6 +40,7 @@ int main( void )
 #include "mbedtls/error.h"
 #include "mbedtls/certs.h"
 #include "mbedtls/timing.h"
+#include "mbedtls/debug.h"
 
 #define SERVER_PORT 4433
 #define SERVER_NAME "localhost"
@@ -66,39 +52,54 @@ int main( void )
 #define READ_TIMEOUT_MS 1000
 #define MAX_RETRY 5
 
-#define DEBUG_LEVEL 0
+#define DEBUG_LEVEL 5
 
-PROCESS(dtls_example_server, "DTLS Example Server");
-AUTOSTART_PROCESSES(&dtls_example_server);
+PROCESS(dtls_example_client, "DTLS Example Client");
+AUTOSTART_PROCESSES(&dtls_example_client);
 
-PROCESS_THREAD(dtls_example_server, ev, data)
+static void my_debug( void *ctx, int level,
+                      const char *file, int line,
+                      const char *str )
 {
-  PROCESS_BEGIN();
+    ((void) level);
+    ((void) ctx);
 
-  PROCESS_PAUSE();
+  printf("%s:%04d: %s", file, line, str );
+}
 
-  printf("Starting DTLS Example Server\n");
 
-  int ret, len;
-  struct udp_socket sock;
-  uint32_t flags;
+PROCESS_THREAD(dtls_example_client, ev, data)
+{
+
+
+  static int ret, len;
+  static struct udp_socket sock;
+  static uint32_t flags;
   unsigned char buf[1024];
   const char *pers = "dtls_client";
-  int retry_left = MAX_RETRY;
+  static int retry_left = MAX_RETRY;
 
-  mbedtls_entropy_context entropy;
-  mbedtls_ctr_drbg_context ctr_drbg;
-  mbedtls_ssl_context ssl;
-  mbedtls_ssl_config conf;
-  mbedtls_x509_crt cacert;
-  mbedtls_timing_delay_context timer;
+  static mbedtls_entropy_context entropy;
+  static mbedtls_ctr_drbg_context ctr_drbg;
+  static mbedtls_ssl_context ssl;
+  static mbedtls_ssl_config conf;
+  static mbedtls_x509_crt cacert;
+  static mbedtls_timing_delay_context timer;
 
   //mbedtls_net_init(&server_fd);
+
+  PROCESS_BEGIN();
+  printf("Starting DTLS Example Client\n");
   udp_socket_register(&sock, NULL, mbedtls_callback);
   mbedtls_ssl_init(&ssl);
   mbedtls_ssl_config_init(&conf);
   mbedtls_x509_crt_init(&cacert);
   mbedtls_ctr_drbg_init(&ctr_drbg);
+
+
+#if defined(MBEDTLS_DEBUG_C)
+    mbedtls_debug_set_threshold( DEBUG_LEVEL );
+#endif
 
   printf("\n  . Seeding the random number generator...");
   
@@ -163,7 +164,8 @@ PROCESS_THREAD(dtls_example_server, ev, data)
   mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_OPTIONAL );
   mbedtls_ssl_conf_ca_chain( &conf, &cacert, NULL );
   mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
-//  mbedtls_ssl_conf_dbg( &conf, my_debug, stdout );
+  mbedtls_ssl_conf_dbg( &conf, my_debug, stdout );
+  mbedtls_ssl_conf_max_frag_len(&conf, MBEDTLS_SSL_MAX_FRAG_LEN_1024);
 
   if( ( ret = mbedtls_ssl_setup( &ssl, &conf ) ) != 0 )
   {
@@ -185,11 +187,18 @@ PROCESS_THREAD(dtls_example_server, ev, data)
   printf( " ok\n" );
 
 
+  mbedtls_ssl_set_mtu(&ssl, UIP_CONF_BUFFER_SIZE);
+
   printf( "  . Performing the DTLS handshake..." );
 
-  do ret = mbedtls_ssl_handshake( &ssl );
-  while( ret == MBEDTLS_ERR_SSL_WANT_READ ||
-       ret == MBEDTLS_ERR_SSL_WANT_WRITE );
+
+  do{
+    ret = mbedtls_ssl_handshake( &ssl );
+    if (ret == MBEDTLS_ERR_SSL_WANT_READ){
+      PROCESS_YIELD();
+    }
+  }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
+         ret == MBEDTLS_ERR_SSL_WANT_WRITE );
 
   if( ret != 0 )
   {
@@ -246,9 +255,14 @@ send_request:
   len = sizeof( buf ) - 1;
   memset( buf, 0, sizeof( buf ) );
 
-  do ret = mbedtls_ssl_read( &ssl, buf, len );
-  while( ret == MBEDTLS_ERR_SSL_WANT_READ ||
+  do{
+    ret = mbedtls_ssl_read( &ssl, buf, len );
+    if (ret == MBEDTLS_ERR_SSL_WANT_READ){
+      PROCESS_YIELD();
+    }
+  }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE );
+
 
   if( ret <= 0 )
   {
@@ -272,6 +286,7 @@ send_request:
   }
 
   len = ret;
+  buf[len] ='\0';
   printf( " %d bytes read\n\n%s\n\n", len, buf );
 
     /*

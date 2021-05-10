@@ -19,37 +19,6 @@
 #define MBEDTLS_EXIT_FAILURE    EXIT_FAILURE
 #endif
 
-/* Uncomment out the following line to default to IPv4 and disable IPv6 */
-//#define FORCE_IPV4
-
-#ifdef FORCE_IPV4
-#define BIND_IP     "0.0.0.0"     /* Forces IPv4 */
-#else
-#define BIND_IP     "::"
-#endif
-/*
-#if !defined(MBEDTLS_SSL_SRV_C) || !defined(MBEDTLS_SSL_PROTO_DTLS) ||    \
-    !defined(MBEDTLS_SSL_COOKIE_C) || !defined(MBEDTLS_NET_C) ||          \
-    !defined(MBEDTLS_ENTROPY_C) || !defined(MBEDTLS_CTR_DRBG_C) ||        \
-    !defined(MBEDTLS_X509_CRT_PARSE_C) || !defined(MBEDTLS_RSA_C) ||      \
-    !defined(MBEDTLS_CERTS_C) || !defined(MBEDTLS_PEM_PARSE_C) ||         \
-    !defined(MBEDTLS_TIMING_C)
-
-int main( void )
-{
-    printf( "MBEDTLS_SSL_SRV_C and/or MBEDTLS_SSL_PROTO_DTLS and/or "
-            "MBEDTLS_SSL_COOKIE_C and/or MBEDTLS_NET_C and/or "
-            "MBEDTLS_ENTROPY_C and/or MBEDTLS_CTR_DRBG_C and/or "
-            "MBEDTLS_X509_CRT_PARSE_C and/or MBEDTLS_RSA_C and/or "
-            "MBEDTLS_CERTS_C and/or MBEDTLS_PEM_PARSE_C and/or "
-            "MBEDTLS_TIMING_C not defined.\n" );
-    mbedtls_exit( 0 );
-}
-#else
-*/
-#if defined(_WIN32)
-#include <windows.h>
-#endif
 
 #include <string.h>
 #include <stdlib.h>
@@ -93,10 +62,10 @@ static void my_debug( void *ctx, int level,
     fflush(  (FILE *) ctx  );
 }
 
-PROCESS(er_example_server, "Erbium Example Server");
-AUTOSTART_PROCESSES(&er_example_server);
+PROCESS(dtls_example_server, "DTLS Example Server");
+AUTOSTART_PROCESSES(&dtls_example_server);
 
-PROCESS_THREAD(er_example_server, ev, data)
+PROCESS_THREAD(dtls_example_server, ev, data)
 {
     PROCESS_BEGIN();
 
@@ -104,35 +73,27 @@ PROCESS_THREAD(er_example_server, ev, data)
 
     LOG_INFO("Starting MbedTLS Example Server\n");
 
-    // process specific events
     while(1) {
-        // PROCESS_WAIT_EVENT();
 
-        int ret, len;
-        struct udp_socket listen_sock;
-        struct socket_info client_info;
-        client_info.source_addr = NULL;
-        client_info.source_port = 0;
-        
-        unsigned char buf[1024];
-        const char *pers = "dtls_server";
-       // unsigned char client_ip[16] = { 0 };
-        //size_t cliip_len;
-        mbedtls_ssl_cookie_ctx cookie_ctx;
+        static int ret, len;
+        static struct udp_socket listen_sock;
+        static unsigned char buf[1024];
+        static const char *pers = "dtls_server";
+        static mbedtls_ssl_cookie_ctx cookie_ctx;
 
-        mbedtls_entropy_context entropy;
-        mbedtls_ctr_drbg_context ctr_drbg;
-        mbedtls_ssl_context ssl;
-        mbedtls_ssl_config conf;
-        mbedtls_x509_crt srvcert;
-        mbedtls_pk_context pkey;
-        mbedtls_timing_delay_context timer;
+        static mbedtls_entropy_context entropy;
+        static mbedtls_ctr_drbg_context ctr_drbg;
+        static mbedtls_ssl_context ssl;
+        static mbedtls_ssl_config conf;
+        static mbedtls_x509_crt srvcert;
+        static mbedtls_pk_context pkey;
+        static mbedtls_timing_delay_context timer;
         
         #if defined(MBEDTLS_SSL_CACHE_C)
-        mbedtls_ssl_cache_context cache;
+        static mbedtls_ssl_cache_context cache;
         #endif
 
-        udp_socket_register(&listen_sock, &client_info, mbedtls_callback);
+        udp_socket_register(&listen_sock, NULL, mbedtls_callback);
         
         mbedtls_ssl_init( &ssl );
         mbedtls_ssl_config_init( &conf );
@@ -290,21 +251,23 @@ reset:
         printf( "  . Waiting for a remote connection ..." );
         fflush( stdout );
 
-     //   PROCESS_WAIT_UNTIL(client_info.source_addr);
+        PROCESS_YIELD();
 
         /* For HelloVerifyRequest cookies */
         if( ( ret = mbedtls_ssl_set_client_transport_id( &ssl,
-                        (unsigned char *)&client_info, sizeof(client_info) ) ) != 0 )
+                        (unsigned char *)&listen_sock.udp_conn, sizeof(listen_sock.udp_conn) ) ) != 0 )
         {
             printf( " failed\n  ! "
                     "mbedtls_ssl_set_client_transport_id() returned -0x%x\n\n", (unsigned int) -ret );
             goto exit;
         }
 
-        mbedtls_ssl_set_bio( &ssl, NULL,
-                             mbedtls_net_send, mbedtls_net_recv, NULL );
+        mbedtls_ssl_set_bio( &ssl, &listen_sock,
+                             mbedtls_net_sendto, mbedtls_net_recv, NULL );
 
         printf( " ok\n" );
+
+        mbedtls_ssl_set_mtu(&ssl, UIP_CONF_BUFFER_SIZE);
 
         /*
          * 5. Handshake
@@ -312,8 +275,12 @@ reset:
         printf( "  . Performing the DTLS handshake..." );
         fflush( stdout );
 
-        do ret = mbedtls_ssl_handshake( &ssl );
-        while( ret == MBEDTLS_ERR_SSL_WANT_READ ||
+        do{
+            ret = mbedtls_ssl_handshake( &ssl );
+            if (ret == MBEDTLS_ERR_SSL_WANT_READ){
+                PROCESS_YIELD();
+            }
+        }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
                ret == MBEDTLS_ERR_SSL_WANT_WRITE );
 
         if( ret == MBEDTLS_ERR_SSL_HELLO_VERIFY_REQUIRED )
@@ -339,9 +306,14 @@ reset:
         len = sizeof( buf ) - 1;
         memset( buf, 0, sizeof( buf ) );
 
-        do ret = mbedtls_ssl_read( &ssl, buf, len );
-        while( ret == MBEDTLS_ERR_SSL_WANT_READ ||
+        do{
+            ret = mbedtls_ssl_read( &ssl, buf, len );;
+            if (ret == MBEDTLS_ERR_SSL_WANT_READ){
+                PROCESS_YIELD();
+            }
+        }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
                ret == MBEDTLS_ERR_SSL_WANT_WRITE );
+
 
         if( ret <= 0 )
         {
