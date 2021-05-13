@@ -52,7 +52,7 @@
 #define READ_TIMEOUT_MS 1000
 #define MAX_RETRY 5
 
-#define DEBUG_LEVEL 5
+#define DEBUG_LEVEL 0
 
 PROCESS(dtls_example_client, "DTLS Example Client");
 AUTOSTART_PROCESSES(&dtls_example_client);
@@ -136,7 +136,8 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
 
   uip_ipaddr_t server_addr;
-  uip_ip6addr(&server_addr,0xfd00, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0001);
+
+  uip_ip6addr(&server_addr,0xfd00,0x0000,0x0000,0x0000, 0x0204, 0x0004, 0x0004, 0x0004);
 
   if( ( ret = udp_socket_connect( &sock, &server_addr,
                                       SERVER_PORT ) ) != 1 )
@@ -192,10 +193,19 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   printf( "  . Performing the DTLS handshake..." );
 
 
+  static struct etimer et;
+
   do{
     ret = mbedtls_ssl_handshake( &ssl );
     if (ret == MBEDTLS_ERR_SSL_WANT_READ){
-      PROCESS_YIELD();
+
+      mbedtls_timing_delay_context* t = (mbedtls_timing_delay_context*)ssl.p_timer;
+
+      etimer_set(&et, (CLOCK_SECOND * t->fin_ms)/1000);
+
+      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) || ev == PROCESS_EVENT_POLL);
+
+      etimer_stop(&et);
     }
   }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE );
@@ -258,7 +268,14 @@ send_request:
   do{
     ret = mbedtls_ssl_read( &ssl, buf, len );
     if (ret == MBEDTLS_ERR_SSL_WANT_READ){
-      PROCESS_YIELD();
+       mbedtls_timing_delay_context* t = (mbedtls_timing_delay_context*)ssl.p_timer;
+
+      etimer_set(&et, (CLOCK_SECOND * t->fin_ms)/1000);
+      
+      PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) || ev == PROCESS_EVENT_POLL);
+
+      etimer_stop(&et);
+
     }
   }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE );

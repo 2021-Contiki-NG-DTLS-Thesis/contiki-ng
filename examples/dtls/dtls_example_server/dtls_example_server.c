@@ -88,6 +88,8 @@ PROCESS_THREAD(dtls_example_server, ev, data)
         static mbedtls_x509_crt srvcert;
         static mbedtls_pk_context pkey;
         static mbedtls_timing_delay_context timer;
+        static struct etimer et;
+
         
         #if defined(MBEDTLS_SSL_CACHE_C)
         static mbedtls_ssl_cache_context cache;
@@ -278,7 +280,14 @@ reset:
         do{
             ret = mbedtls_ssl_handshake( &ssl );
             if (ret == MBEDTLS_ERR_SSL_WANT_READ){
-                PROCESS_YIELD();
+
+                mbedtls_timing_delay_context* t = (mbedtls_timing_delay_context*)ssl.p_timer;
+
+                etimer_set(&et, (CLOCK_SECOND * t->fin_ms)/1000);
+
+                PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) || ev == PROCESS_EVENT_POLL);
+
+                etimer_stop(&et);
             }
         }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
                ret == MBEDTLS_ERR_SSL_WANT_WRITE );
@@ -309,7 +318,14 @@ reset:
         do{
             ret = mbedtls_ssl_read( &ssl, buf, len );;
             if (ret == MBEDTLS_ERR_SSL_WANT_READ){
-                PROCESS_YIELD();
+
+                mbedtls_timing_delay_context* t = (mbedtls_timing_delay_context*)ssl.p_timer;
+
+                etimer_set(&et, (CLOCK_SECOND * t->fin_ms)/1000);
+
+                PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et) || ev == PROCESS_EVENT_POLL);
+
+                etimer_stop(&et);
             }
         }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
                ret == MBEDTLS_ERR_SSL_WANT_WRITE );
