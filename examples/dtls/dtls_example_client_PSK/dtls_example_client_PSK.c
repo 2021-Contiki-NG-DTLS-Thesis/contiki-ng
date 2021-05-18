@@ -54,9 +54,17 @@
 
 #define DEBUG_LEVEL 0
 
+
+const unsigned char psk[] = {
+    0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f
+};
+const char psk_id[] = "Client_identity";
+
+
 PROCESS(dtls_example_client, "DTLS Example Client");
 AUTOSTART_PROCESSES(&dtls_example_client);
-
+/*
 static void my_debug( void *ctx, int level,
                       const char *file, int line,
                       const char *str )
@@ -66,7 +74,7 @@ static void my_debug( void *ctx, int level,
 
   printf("%s:%04d: %s", file, line, str );
 }
-
+*/
 
 PROCESS_THREAD(dtls_example_client, ev, data)
 {
@@ -74,7 +82,7 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
   static int ret, len;
   static struct udp_socket sock;
-  uint32_t flags;
+  //uint32_t flags;
   unsigned char buf[1024];
   const char *pers = "dtls_client";
   static int retry_left = MAX_RETRY;
@@ -83,24 +91,22 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   static mbedtls_ctr_drbg_context ctr_drbg;
   static mbedtls_ssl_context ssl;
   static mbedtls_ssl_config conf;
-  static mbedtls_x509_crt cacert;
   static mbedtls_timing_delay_context timer;
   static heapmem_stats_t stats;
 
   //mbedtls_net_init(&server_fd);
 
   PROCESS_BEGIN();
-  printf("Starting DTLS Example Client\n");
+  printf("Starting DTLS PSK Example Client\n");
   udp_socket_register(&sock, NULL, mbedtls_callback);
   mbedtls_ssl_init(&ssl);
   mbedtls_ssl_config_init(&conf);
-  mbedtls_x509_crt_init(&cacert);
   mbedtls_ctr_drbg_init(&ctr_drbg);
 
   heapmem_stats(&stats);
   printf("\nAfter first inits:\nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
-  printf("entropy: %ld\nctr_drbg %ld\nssl %ld\nconf %ld\ncacert %ld\ntimer %ld\n", sizeof(entropy), sizeof(ctr_drbg), sizeof(ssl), sizeof(conf), sizeof(cacert), sizeof(timer));
+  
 
 
 #if defined(MBEDTLS_DEBUG_C)
@@ -121,26 +127,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   printf("ok\n");
   heapmem_stats(&stats);
   printf("\nHeapmem: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
-
-
-
-
-  printf("  . Loading the CA root certificate ...");
-
-  ret = mbedtls_x509_crt_parse( &cacert, (const unsigned char *) mbedtls_test_cas_pem,
-                        mbedtls_test_cas_pem_len);
-
-  if( ret < 0 )
-  {
-    printf( " failed\n  !  mbedtls_x509_crt_parse returned -0x%x\n\n", (unsigned int) -ret );
-    goto exit;
-  }
-
-  heapmem_stats(&stats);
-  printf("\nHeapmem: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
-
-
-  printf( " ok (%d skipped)\n", ret );
 
 
 
@@ -182,9 +168,9 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
 
   mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_OPTIONAL );
-  mbedtls_ssl_conf_ca_chain( &conf, &cacert, NULL );
+  mbedtls_ssl_conf_psk( &conf, psk, sizeof( psk ), (const unsigned char *) psk_id, sizeof( psk_id ) - 1 );
   mbedtls_ssl_conf_rng( &conf, mbedtls_ctr_drbg_random, &ctr_drbg );
-  mbedtls_ssl_conf_dbg( &conf, my_debug, stdout );
+ // mbedtls_ssl_conf_dbg( &conf, my_debug, stdout );
   mbedtls_ssl_conf_max_frag_len(&conf, MBEDTLS_SSL_MAX_FRAG_LEN_1024);
 
   heapmem_stats(&stats);
@@ -225,11 +211,25 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
 
   static struct etimer et;
-  static int counter = 0;
+
+
+  printf("\nentropy: %ld\nctr_drbg %ld\nssl %ld\nconf %ld\npsk %ld\ntimer %ld\nret %ld\nlen %ld\nretry_left %ld\nsock %ld\net %ld\nsum %ld\n", 
+  sizeof(entropy), 
+  sizeof(ctr_drbg), 
+  sizeof(ssl), 
+  sizeof(conf), 
+  sizeof(psk), 
+  sizeof(timer),
+  sizeof(ret),
+  sizeof(len),
+  sizeof(retry_left),
+  sizeof(sock),
+  sizeof(et),
+  sizeof(entropy) + sizeof(ctr_drbg) + sizeof(ssl) + sizeof(conf) + sizeof(psk) + sizeof(timer) + sizeof(ret) + sizeof(len) + sizeof(retry_left) + sizeof(sock) + sizeof(et));
 
   do{
       heapmem_stats(&stats);
-      printf("\nHeapmem after %d iter: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",counter++, stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
+      printf("\nHeapmem ssl->state = %d: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",ssl.state, stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
     ret = mbedtls_ssl_handshake( &ssl );
     if (ret == MBEDTLS_ERR_SSL_WANT_READ){
@@ -254,31 +254,7 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   printf( " ok\n" );
   heapmem_stats(&stats);
   printf("\nHeapmem after handshake: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
-
-  /*
-   * 5. Verify the server certificate
-   */
-  printf( "  . Verifying peer X.509 certificate..." );
-
-  /* In real life, we would have used MBEDTLS_SSL_VERIFY_REQUIRED so that the
-   * handshake would not succeed if the peer's cert is bad.  Even if we used
-   * MBEDTLS_SSL_VERIFY_OPTIONAL, we would bail out here if ret != 0 */
-  if( ( flags = mbedtls_ssl_get_verify_result( &ssl ) ) != 0 )
-  {
-    char vrfy_buf[512];
-
-    printf( " failed\n" );
-
-    mbedtls_x509_crt_verify_info( vrfy_buf, sizeof( vrfy_buf ), "  ! ", flags );
-
-    printf( "%s\n", vrfy_buf );
-  }
-  else
-    printf( " ok\n" );
   
-  heapmem_stats(&stats);
-  printf("\nHeapmem after cert verif: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
-
 
 send_request:
   printf( "  > Write to server:" );
@@ -367,11 +343,9 @@ close_notify:
     /*
      * 9. Final clean-ups and exit
      */
-
     
 exit:
   udp_socket_close(&sock);
-  mbedtls_x509_crt_free( &cacert );
   mbedtls_ssl_free( &ssl );
   mbedtls_ssl_config_free( &conf );
   mbedtls_ctr_drbg_free( &ctr_drbg );
