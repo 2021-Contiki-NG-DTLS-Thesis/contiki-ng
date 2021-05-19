@@ -385,7 +385,7 @@ close_notify:
 
         printf( " done\n" );
 
-        goto reset;
+        goto exit;
 
         /*
          * Final clean-ups and exit

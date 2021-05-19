@@ -137,7 +137,7 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
   uip_ipaddr_t server_addr;
 
-  uip_ip6addr(&server_addr,0xfd00,0x0000,0x0000,0x0000, 0x0204, 0x0004, 0x0004, 0x0004);
+  uip_ip6addr(&server_addr,0xfd00,0x0000,0x0000,0x0000, 0x0000, 0x0000, 0x0000, 0x0001);
 
   if( ( ret = udp_socket_connect( &sock, &server_addr,
                                       SERVER_PORT ) ) != 1 )
