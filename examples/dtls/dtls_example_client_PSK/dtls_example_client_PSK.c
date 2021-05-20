@@ -103,8 +103,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   mbedtls_ssl_config_init(&conf);
   mbedtls_ctr_drbg_init(&ctr_drbg);
 
-  heapmem_stats(&stats);
-  printf("\nAfter first inits:\nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
   
 
@@ -125,8 +123,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   }
 
   printf("ok\n");
-  heapmem_stats(&stats);
-  printf("\nHeapmem: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
 
@@ -147,8 +143,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
   printf( " ok\n" );
 
-  heapmem_stats(&stats);
-  printf("\nHeapmem: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
 
@@ -163,8 +157,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
     goto exit;
   }
 
-  heapmem_stats(&stats);
-  printf("\nHeapmem: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
   mbedtls_ssl_conf_authmode( &conf, MBEDTLS_SSL_VERIFY_OPTIONAL );
@@ -173,8 +165,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
  // mbedtls_ssl_conf_dbg( &conf, my_debug, stdout );
   mbedtls_ssl_conf_max_frag_len(&conf, MBEDTLS_SSL_MAX_FRAG_LEN_1024);
 
-  heapmem_stats(&stats);
-  printf("\nHeapmem after conf: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
   if( ( ret = mbedtls_ssl_setup( &ssl, &conf ) ) != 0 )
@@ -183,8 +173,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
     goto exit;
   }
   
-  heapmem_stats(&stats);
-  printf("\nHeapmem after ssl setup: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
 
@@ -201,8 +189,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
   printf( " ok\n" );
 
-  heapmem_stats(&stats);
-  printf("\nHeapmem after ssl setup: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n", stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
 
   mbedtls_ssl_set_mtu(&ssl, UIP_CONF_BUFFER_SIZE);
@@ -228,8 +214,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   sizeof(entropy) + sizeof(ctr_drbg) + sizeof(ssl) + sizeof(conf) + sizeof(psk) + sizeof(timer) + sizeof(ret) + sizeof(len) + sizeof(retry_left) + sizeof(sock) + sizeof(et));
 
   do{
-      heapmem_stats(&stats);
-      printf("\nHeapmem ssl->state = %d: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",ssl.state, stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
     ret = mbedtls_ssl_handshake( &ssl );
     if (ret == MBEDTLS_ERR_SSL_WANT_READ){
@@ -252,8 +236,6 @@ PROCESS_THREAD(dtls_example_client, ev, data)
   }
 
   printf( " ok\n" );
-  heapmem_stats(&stats);
-  printf("\nHeapmem after handshake: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
   
 
 send_request:
@@ -273,8 +255,6 @@ send_request:
 
   len = ret;
   printf( " %d bytes written\n\n%s\n\n", len, MESSAGE );
-  heapmem_stats(&stats);
-  printf("\nHeapmem after write: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
     /*
      * 7. Read the echo response
@@ -320,8 +300,6 @@ send_request:
         goto exit;
     }
   }
-  heapmem_stats(&stats);
-  printf("\nHeapmem after read: \nallocated: %ld,\noverhead: %ld,\navailable: %ld,\nfootprint: %ld,\nchunks: %ld.\n\n",stats.allocated, stats.overhead, stats.available, stats.footprint, stats.chunks);
 
   len = ret;
   buf[len] ='\0';
