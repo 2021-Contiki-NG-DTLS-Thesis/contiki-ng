@@ -1,0 +1,13 @@
+
+#ifndef PROJECT_CONF_H_
+#define PROJECT_CONF_H_
+
+#define LOG_LEVEL_APP LOG_LEVEL_INFO
+
+#define LOG_CONF_LEVEL_IPV6 LOG_LEVEL_NONE
+
+#define HEAPMEM_CONF_ARENA_SIZE 1024 * 20
+
+//#define HEAPMEM_CONF_ALIGNMENT sizeof(uint64_t)
+
+#endif /* PROJECT_CONF_H_ */
