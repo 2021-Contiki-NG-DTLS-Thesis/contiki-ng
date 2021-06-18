@@ -8,4 +8,6 @@
 
 #define HEAPMEM_CONF_ARENA_SIZE 1024 * 20
 
+#define HEAPMEM_CONF_ALIGNMENT sizeof(uint64_t)
+
 #endif /* PROJECT_CONF_H_ */

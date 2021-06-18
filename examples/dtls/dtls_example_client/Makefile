@@ -16,7 +16,9 @@ ifeq (${wildcard $(CONTIKI)/$(MBEDTLS_PATH)/Makefile},)
 endif
 
 
-CFLAGS += -DWITH_DTLS=1
+CFLAGS += -DWITH_DTLS=1 -fsanitize=address -g
+CXXFLAGS += -fsanitize=address
+LDFLAGS += -fsanitize=address -static-libasan
 
 MODULES += $(MBEDTLS_PATH) ${addprefix $(MBEDTLS_PATH)/,library include}
 

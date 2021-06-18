@@ -15,8 +15,11 @@ ifeq (${wildcard $(CONTIKI)/$(MBEDTLS_PATH)/Makefile},)
 	${error Could not find the  Mbed TLS submodule. Please run "git submodule update --init" and try again}
 endif
 
+# asan flags are for address sanitization
+CFLAGS += -DWITH_DTLS=1 -fsanitize=address -fsanitize=undefined -g -fsanitize=float-divide-by-zero -fsanitize=signed-integer-overflow #-fsanitize=implicit-conversion -fsanitize=local-bounds
+CXXFLAGS += -fsanitize=address -fsanitize=undefined
+LDFLAGS += -fsanitize=address -fsanitize=undefined -static-libasan
 
-CFLAGS += -DWITH_DTLS=1
 
 MODULES += $(MBEDTLS_PATH) ${addprefix $(MBEDTLS_PATH)/,library include}
 
