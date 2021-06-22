@@ -198,7 +198,7 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
   static struct etimer et;
 
-  do{
+  do {
 
     ret = mbedtls_ssl_handshake(&ssl);
     if(ret == MBEDTLS_ERR_SSL_WANT_READ) {
@@ -209,7 +209,7 @@ PROCESS_THREAD(dtls_example_client, ev, data)
 
       etimer_stop(&et);
     }
-  }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
+  } while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
   if(ret != 0) {
@@ -224,9 +224,9 @@ send_request:
 
   len = sizeof(MESSAGE) - 1;
 
-  do{
+  do {
     ret = mbedtls_ssl_write(&ssl, (unsigned char *)MESSAGE, len);
-  }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
+  } while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
   if(ret < 0) {
@@ -245,7 +245,7 @@ send_request:
   len = sizeof(buf) - 1;
   memset(buf, 0, sizeof(buf));
 
-  do{
+  do {
     ret = mbedtls_ssl_read(&ssl, buf, len);
     if(ret == MBEDTLS_ERR_SSL_WANT_READ) {
 
@@ -255,7 +255,7 @@ send_request:
 
       etimer_stop(&et);
     }
-  }while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
+  } while(ret == MBEDTLS_ERR_SSL_WANT_READ ||
          ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
   if(ret <= 0) {
@@ -289,9 +289,9 @@ close_notify:
   printf("  . Closing the connection...");
 
   /* No error checking, the connection might be closed already */
-  do{
+  do {
     ret = mbedtls_ssl_close_notify(&ssl);
-  }while(ret == MBEDTLS_ERR_SSL_WANT_WRITE);
+  } while(ret == MBEDTLS_ERR_SSL_WANT_WRITE);
   ret = 0;
 
   printf(" done\n");
